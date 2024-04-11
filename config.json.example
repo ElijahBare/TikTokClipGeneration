@@ -1,0 +1,4 @@
+//this is the example format file Use the command 'cp config.json.example config.json' to use this file
+{
+  "api_key": "<your openai api key>"
+}
