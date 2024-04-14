@@ -1,0 +1,5 @@
+*.pyc
+config.json
+.DS_Store
+output
+output_final

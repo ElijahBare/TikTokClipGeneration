@@ -12,6 +12,7 @@ import subprocess
 import os
 import re
 
+
 # Set up OpenAI API client
 client = openai.Client(api_key = json.load(open('config.json', 'r'))["api_key"])
 
@@ -35,7 +36,7 @@ def chatGPT(user_query, conversation, headers, seed=None, systemPrompt=None,
     # switch the model if it is beyond the token limit
     tokenizer = tiktoken.get_encoding("cl100k_base")
     if len(list(tokenizer.encode(str(conversation)))) > 000:
-        model = "gpt-3-turbo"
+        model = "gpt-3.5-turbo"
     response = client.chat.completions.create(
         model=model,
         messages=conversation,
@@ -145,6 +146,7 @@ class VideoGen:
 
         return all_clips
 
+
     def cut_videos(self, clips):
         print("Cutting video clips...")
         video = VideoFileClip(self.video_path)
@@ -168,55 +170,114 @@ class VideoGen:
             print(f"Clip {i} saved: {clip_path}")
         print("Video clips cut and saved.")
 
+    def crop_around_face_with_tiktok_ratio(self, input_path, output_path):
+            print(f"Cropping video {input_path} around the talking person with TikTok aspect ratio...")
+            tiktok_aspect_ratio = 9.0 / 16
 
-    def crop_to_iphone_aspect_ratio(self):
-        iphone_aspect_ratio = 9.0/16
+            # Load the video
+            cap = cv2.VideoCapture(input_path)
 
-        for input_path in os.listdir("./output/"):
-            if os.path.isdir("./output/" + input_path) or input_path.startswith("."):
-                continue
+            # Get video properties
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
-            input_path = "./output/" + input_path
-            output_path = input_path + "_cropped.mp4"
+            # Load the pre-trained deep learning model for face detection
+            prototxt_path = "./deploy.prototxt"
+            model_path = "./model.caffemodel"
+            net = cv2.dnn.readNetFromCaffe(prototxt_path, model_path)
 
-            print(f"Cropping video {input_path} to iPhone aspect ratio...")
+            # Calculate the new width based on the TikTok aspect ratio
+            new_width = int(height * tiktok_aspect_ratio)
 
-            # Get the input video resolution
-            cmd = f"ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 {input_path}"
-            resolution = subprocess.check_output(cmd, shell=True).decode().strip()
-            width, height = [int(x) for x in resolution.split('x')]
+            wo_audio = output_path + "no_audio.mp4"
 
-            # Calculate the crop dimensions
-            original_aspect_ratio = width / float(height)
-            if original_aspect_ratio > iphone_aspect_ratio:
-                new_height = height
-                new_width = int(new_height * iphone_aspect_ratio)
-            else:
-                new_width = width
-                new_height = int(new_width / iphone_aspect_ratio)
+            # Create VideoWriter object with the TikTok aspect ratio
+            out = cv2.VideoWriter(wo_audio, fourcc, fps, (new_width, height))
 
-            crop_dimensions = f"{new_width}:{new_height}"
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
 
-            command = f"ffmpeg -i {input_path} -filter:v \"crop={crop_dimensions}\" -c:a copy {output_path}"
-            subprocess.call(command, shell=True)
+                # Prepare the frame for face detection
+                blob = cv2.dnn.blobFromImage(cv2.resize(frame, (300, 300)), 1.0, (300, 300), (104.0, 177.0, 123.0))
 
-            print(f"Cropped video saved: {output_path}")
+                # Pass the blob through the network to perform face detection
+                net.setInput(blob)
+                detections = net.forward()
+
+                # Initialize variables to keep track of the largest face detected
+                largest_area = 0
+                largest_box = None
+
+                # Process the detections and find the bounding box of the largest face
+                for i in range(detections.shape[2]):
+                    confidence = detections[0, 0, i, 2]
+                    if confidence > 0.5:  # Adjust confidence threshold as needed
+                        # Extract bounding box coordinates
+                        box = detections[0, 0, i, 3:7] * np.array([width, height, width, height])
+                        (startX, startY, endX, endY) = box.astype("int")
+
+                        # Calculate the area of the bounding box
+                        area = (endX - startX) * (endY - startY)
+
+                        # Update largest_area and largest_box if current face is larger
+                        if area > largest_area:
+                            largest_area = area
+                            largest_box = (startX, startY, endX, endY)
+
+                if largest_box is not None:
+                    # Extract coordinates of the largest face
+                    (startX, startY, endX, endY) = largest_box
+
+                    # Crop around the detected face
+                    cropped_frame = frame[startY - 50 : endY + 50, startX - 50:endX + 50]
+
+                    # Resize cropped frame to fit the TikTok aspect ratio without stretching
+                    resized_frame = cv2.resize(cropped_frame, (new_width, height))
+
+                    # Write the resized frame to the output video
+                    out.write(resized_frame)
+
+            # Release VideoCapture and VideoWriter objects
+            cap.release()
+            out.release()
+            cv2.destroyAllWindows()
+
+            video_out = VideoFileClip(wo_audio)
+            audio = AudioFileClip(input_path)
+
+            video_out = video_out.set_audio(audio)  # Combine video with audio
+
+            video_out.write_videofile(output_path,
+                                        codec='libx264',
+                                        audio_codec='aac',
+                                        temp_audiofile='temp-audio.m4a',
+                                        remove_temp=True)
+
+
 
 if __name__ == "__main__":
     out_folder = "output"
     os.makedirs(out_folder, exist_ok=True)
 
     video_gen = VideoGen(video_id, out_folder)
-    video_gen.download_video()
-    video_gen.get_transcript()
-    clips = video_gen.generate_clips()
-    print("Found clips:")
-    print(json.dumps(clips, indent=2))
-    video_gen.cut_videos(clips)
-    video_gen.crop_to_iphone_aspect_ratio()
+    # video_gen.download_video()
+    # video_gen.get_transcript()
+    # clips = video_gen.generate_clips()
+    # print("Found clips:")
+    # print(json.dumps(clips, indent=2))
+    # video_gen.cut_videos(clips)
 
     for file in os.listdir("./output/"):
-        if "cropped" in file:
+        if "clip" in file and "cropped" not in file:
+            print(file)
+            video_gen.crop_around_face_with_tiktok_ratio("./output/" + file, "./output/" + file + "_cropped.mp4")
+
+    for file in os.listdir("./output/"):
+        if "cropped" in file and "wo_audio" not in file:
             os.system(f"python3 caption.py output/{file} --model base --output_dir output_final")
 
     print("Process completed.")
