@@ -63,9 +63,11 @@ def main():
         audio = video.audio
 
         ffmpeg.concat(
-            video.filter('subtitles', srt_path, force_style="PrimaryColour=&H00FF0000,FontSize=30,fontfile='/Users/ebare/Documents/TiktokClipgen/font.ttf'"), audio, v=1, a=1).output(out_path).run(quiet=True, overwrite_output=True)
-        print(f"Saved subtitled video to {os.path.abspath(out_path)}.")
-
+            video.filter('subtitles', srt_path, force_style="PrimaryColour=&H00FF0000,FontSize=30,Style=Bold"),
+            audio,
+            v=1,
+            a=1
+        ).output(out_path).run(quiet=True, overwrite_output=True)
 
 def get_audio(paths):
     temp_dir = tempfile.gettempdir()
