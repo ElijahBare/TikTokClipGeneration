@@ -14,7 +14,7 @@ import re
 
 
 # Set up OpenAI API client
-client = openai.Client(api_key = json.load(open('config.json', 'r'))["api_key"])
+client = openai.Client(api_key=json.load(open('config.json', 'r'))["api_key"])
 
 # Define the chatGPT function
 def chatGPT(user_query, conversation, headers, seed=None, systemPrompt=None,
@@ -161,7 +161,8 @@ class VideoGen:
             clip_video = video.subclip(start_time, end_time)
             clip_audio = audio.subclip(start_time, end_time)
             final_clip = clip_video.set_audio(clip_audio)
-            clip_path = os.path.join(self.out_folder, f"clip_{i}_{start_time}_{end_time}.mp4")
+            clip_name = f"{self.video_id}_{i:03d}_{start_time:.2f}_{end_time:.2f}.mp4"
+            clip_path = os.path.join(self.out_folder, clip_name)
             final_clip.write_videofile(clip_path,
                                         codec='libx264',
                                         audio_codec='aac',
@@ -173,7 +174,11 @@ class VideoGen:
 
     def crop_around_face_with_tiktok_ratio(self, input_path, output_path):
         print(f"Cropping video {input_path} around the talking person with TikTok aspect ratio...")
-        tiktok_aspect_ratio = 9.0 / 16
+
+        cropscale = json.load(open("config.json"))["crop_scale"]
+        # Calculate the desired width and height of the region
+        region_width = 9 * cropscale
+        region_height = 16 * cropscale
 
         # Load the video
         cap = cv2.VideoCapture(input_path)
@@ -184,18 +189,18 @@ class VideoGen:
         fps = cap.get(cv2.CAP_PROP_FPS)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
+        cv2.namedWindow("debug")
+
         # Load the pre-trained deep learning model for face detection
         prototxt_path = "./deploy.prototxt"
         model_path = "./model.caffemodel"
         net = cv2.dnn.readNetFromCaffe(prototxt_path, model_path)
 
-        # Calculate the new width based on the TikTok aspect ratio
-        new_width = int(height * tiktok_aspect_ratio)
 
         wo_audio = output_path + "no_audio.mp4"
 
         # Create VideoWriter object with the TikTok aspect ratio
-        out = cv2.VideoWriter(wo_audio, fourcc, fps, (new_width, height))
+        out = cv2.VideoWriter(wo_audio, fourcc, fps, (region_width, region_height))
 
         while True:
             ret, frame = cap.read()
@@ -230,19 +235,33 @@ class VideoGen:
                         largest_box = (startX, startY, endX, endY)
 
             if largest_box is not None:
+
                 # Extract coordinates of the largest face
                 (startX, startY, endX, endY) = largest_box
 
-                # Crop around the detected face
-                cropped_frame = frame[startY: endY, startX:endX]
+                # Calculate the center point of the face
+                center_x = (endX + startX) // 2
+                center_y = (endY + startY) // 2
 
-                # Resize cropped frame to fit the TikTok aspect ratio without stretching
-                resized_frame = cv2.resize(cropped_frame, (new_width, height), interpolation=cv2.INTER_LINEAR)
 
-                # Write the resized frame to the output video
-                out.write(resized_frame)
 
-        # Release VideoCapture and VideoWriter objects
+                # Calculate the top-left and bottom-right coordinates of the region
+                left_pad = max(0, center_x - region_width // 2)
+                right_pad = min(frame.shape[1], center_x + region_width // 2)
+                top_pad = max(0, center_y - region_height // 2)
+                bottom_pad = min(frame.shape[0], center_y + region_height // 2)
+
+                # Extract the region from the frame
+                region = frame[top_pad:bottom_pad, left_pad:right_pad]
+
+                # Resize the region to maintain the aspect ratio
+                region = cv2.resize(region, (region_width, region_height), interpolation=cv2.INTER_LINEAR)
+
+                # Display and write the region
+                cv2.imshow("debug", region)
+                cv2.waitKey(1)
+                out.write(region)
+
         cap.release()
         out.release()
         cv2.destroyAllWindows()
@@ -253,10 +272,10 @@ class VideoGen:
         video_out = video_out.set_audio(audio)  # Combine video with audio
 
         video_out.write_videofile(output_path,
-                                codec='libx264',
-                                audio_codec='aac',
-                                temp_audiofile='temp-audio.m4a',
-                                remove_temp=True)
+                                    codec='libx264',
+                                    audio_codec='aac',
+                                    temp_audiofile='temp-audio.m4a',
+                                    remove_temp=True)
 
 if __name__ == "__main__":
     out_folder = "output"
@@ -277,6 +296,7 @@ if __name__ == "__main__":
 
     for file in os.listdir("./output/"):
         if "cropped" in file and "no_audio" not in file:
+            captioned_file = os.path.splitext(file)[0] + "_captioned.mp4"
             os.system(f"python3 caption.py output/{file} --model base --output_dir output_final")
 
     print("Process completed.")
