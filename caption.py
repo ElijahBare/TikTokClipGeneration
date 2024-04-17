@@ -61,7 +61,7 @@ def main():
 
         video = mp.VideoFileClip(path)
         subtitles_clip = SubtitlesClip(srt_path, lambda txt: mp.TextClip(txt, font='Montserrat-SemiBold', fontsize=65, color='blue'))
-        final = mp.CompositeVideoClip([video, subtitles_clip.set_position(("center", video.size[1]*3/4))])
+        final = mp.CompositeVideoClip([video, subtitles_clip.set_position(("center", video.size[1]*3/5))])
         final.write_videofile(out_path, codec="libx264", fps=video.fps)
 
         video.close()
