@@ -1,11 +1,11 @@
 import os
-import ffmpeg
+import moviepy.editor as mp
 import whisper
 import argparse
 import warnings
 import tempfile
 from utils import filename, str2bool, write_srt
-
+from moviepy.video.tools.subtitles import SubtitlesClip
 
 def main():
     parser = argparse.ArgumentParser(
@@ -59,15 +59,13 @@ def main():
 
         print(f"Adding subtitles to {filename(path)}...")
 
-        video = ffmpeg.input(path)
-        audio = video.audio
+        video = mp.VideoFileClip(path)
+        subtitles_clip = SubtitlesClip(srt_path, lambda txt: mp.TextClip(txt, font='Montserrat-SemiBold', fontsize=65, color='blue'))
+        final = mp.CompositeVideoClip([video, subtitles_clip.set_position(("center", video.size[1]*3/4))])
+        final.write_videofile(out_path, codec="libx264", fps=video.fps)
 
-        ffmpeg.concat(
-            video.filter('subtitles', srt_path, force_style="PrimaryColour=&H00FF0000,FontSize=30,Style=Bold"),
-            audio,
-            v=1,
-            a=1
-        ).output(out_path).run(quiet=True, overwrite_output=True)
+        video.close()
+        final.close()
 
 def get_audio(paths):
     temp_dir = tempfile.gettempdir()
@@ -78,15 +76,13 @@ def get_audio(paths):
         print(f"Extracting audio from {filename(path)}...")
         output_path = os.path.join(temp_dir, f"{filename(path)}.wav")
 
-        ffmpeg.input(path).output(
-            output_path,
-            acodec="pcm_s16le", ac=1, ar="16k"
-        ).run(quiet=True, overwrite_output=True)
+        video = mp.VideoFileClip(path)
+        video.audio.write_audiofile(output_path)
+        video.close()
 
         audio_paths[path] = output_path
 
     return audio_paths
-
 
 def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcribe: callable):
     subtitles_path = {}
@@ -109,7 +105,6 @@ def get_subtitles(audio_paths: list, output_srt: bool, output_dir: str, transcri
         subtitles_path[path] = srt_path
 
     return subtitles_path
-
 
 if __name__ == '__main__':
     main()

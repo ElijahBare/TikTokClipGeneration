@@ -48,6 +48,7 @@ def chatGPT(user_query, conversation, headers, seed=None, systemPrompt=None,
     )
     return response.choices[0].message.content
 
+
 # Define the video ID
 video_id = "9IQ_ldV9z_A"
 
@@ -119,23 +120,7 @@ class VideoGen:
                 if start_time <= caption["start"] <= end_time
             ]
 
-            find_clips_prompt = f"""
-            From the transcript I give you, find 30 second to 60 second interesting/funny clips and output the timestamps like this JSON format:
-
-            {example_json}
-
-            Here is the transcript:
-
-            {str(chunk_transcript)}
-
-
-            BE SURE THEY ARE FUNNY ENTERTAINING RELATABLE AND GIVE THE FULL CONTEXT
-            BE SURE THEY DO NOT CUT MID SENTENCE OR THOUGHT OR DRAG ON FOR TOO LONG
-
-            15 seconds MINIMUM aim for 30
-
-            make it perfect json with NO EXPLANATION and NO MD FORMATTING
-            """
+            find_clips_prompt = f"This is a transcript of a video. Please identify the 3 most viral sections from the whole, make sure they are more than 30 seconds in duration,Make Sure you provide extremely accurate timestamps respond only in this format {example_json} \\n Here is the Transcription:\\n{chunk_transcript}"
 
             clips_json = chatGPT(find_clips_prompt, None, None)
 
@@ -258,8 +243,8 @@ class VideoGen:
                 region = cv2.resize(region, (region_width, region_height), interpolation=cv2.INTER_LINEAR)
 
                 # Display and write the region
-                cv2.imshow("debug", region)
-                cv2.waitKey(1)
+                # cv2.imshow("debug", region)
+                # cv2.waitKey(1)
                 out.write(region)
 
         cap.release()
@@ -282,20 +267,20 @@ if __name__ == "__main__":
     os.makedirs(out_folder, exist_ok=True)
 
     video_gen = VideoGen(video_id, out_folder)
-    # video_gen.download_video()
-    # video_gen.get_transcript()
-    # clips = video_gen.generate_clips()
-    # print("Found clips:")
-    # print(json.dumps(clips, indent=2))
-    # video_gen.cut_videos(clips)
+    video_gen.download_video()
+    video_gen.get_transcript()
+    clips = video_gen.generate_clips()
+    print("Found clips:")
+    print(json.dumps(clips, indent=2))
+    video_gen.cut_videos(clips)
 
     for file in os.listdir("./output/"):
-        if "clip" in file and "cropped" not in file:
+        if "cropped" not in file and not file.startswith(".") and not os.path.isdir("./output/" + file):
             print(file)
             video_gen.crop_around_face_with_tiktok_ratio("./output/" + file, "./output/" + file + "_cropped.mp4")
 
     for file in os.listdir("./output/"):
-        if "cropped" in file and "no_audio" not in file:
+        if "cropped" in file and "no_audio" not in file and not file.startswith("."):
             captioned_file = os.path.splitext(file)[0] + "_captioned.mp4"
             os.system(f"python3 caption.py output/{file} --model base --output_dir output_final")
 
