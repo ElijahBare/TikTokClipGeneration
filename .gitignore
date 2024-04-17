@@ -2,4 +2,6 @@
 config.json
 .DS_Store
 *.mp4
+*.mp3
 *.m4a
+*.png

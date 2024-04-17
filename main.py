@@ -50,7 +50,7 @@ def chatGPT(user_query, conversation, headers, seed=None, systemPrompt=None,
 
 
 # Define the video ID
-video_id = "9IQ_ldV9z_A"
+video_id = "WQqzCbjZ1yE"
 
 class VideoGen:
     def __init__(self, video_id, out_folder) -> None:
