@@ -50,7 +50,7 @@ def chatGPT(user_query, conversation, headers, seed=None, systemPrompt=None,
 
 
 # Define the video ID
-video_id = "WQqzCbjZ1yE"
+video_id = "x3e73Qn6NOo"
 
 class VideoGen:
     def __init__(self, video_id, out_folder) -> None:
@@ -252,7 +252,8 @@ class VideoGen:
         cv2.destroyAllWindows()
 
         video_out = VideoFileClip(wo_audio)
-        audio = AudioFileClip(input_path)
+        vid_uncropped = VideoFileClip(input_path)
+        audio = vid_uncropped.audio
 
         video_out = video_out.set_audio(audio)  # Combine video with audio
 
