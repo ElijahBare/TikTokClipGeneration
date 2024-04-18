@@ -177,7 +177,14 @@ def main():
 
         {json_ex}
 
-       You decide if the words in these sentences are signifigant, if they are, give them a color.
+       You decide if the words in these sentences are signifigant, if they are, give them a color that makes sense for the word in its context.
+
+        examples:
+        Money -> green
+        snow -> white
+        horrible -> red
+        poor -> brown
+
 
        Do not do too much coloring
 
