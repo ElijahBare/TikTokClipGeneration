@@ -13,5 +13,5 @@
 - Optionally add GTA/Subway Surfers/Minecraft overlays to further fry peoples attention spans
 - Focus on faces of who is talking with opencv (COMPLETE)
 - Cleanup the use of caption.py (os.system should NOT be used)
-- Optionally Use ai to color the text
+- Use ai to color the text (COMPLETE)
 - any other ideas? make a issue/pr
